@@ -16,12 +16,12 @@ export default {
 
 async function getProgress(env) {
   const { results } = await env.DB
-    .prepare("SELECT id, percent FROM progress")
+    .prepare("SELECT project_id, percent FROM progress")
     .all();
 
   const out = {};
   for (const row of results) {
-    out[row.id] = row.percent;
+    out[row.project_id] = row.percent;
   }
 
   return Response.json(out);
@@ -46,9 +46,9 @@ async function postProgress(request, env) {
 
   await env.DB
     .prepare(
-      `INSERT INTO progress (id, percent, updated_at)
+      `INSERT INTO progress (project_id, percent, updated_at)
        VALUES (?, ?, ?)
-       ON CONFLICT (id) DO UPDATE SET percent = excluded.percent, updated_at = excluded.updated_at`
+       ON CONFLICT (project_id) DO UPDATE SET percent = excluded.percent, updated_at = excluded.updated_at`
     )
     .bind(id, percent, new Date().toISOString())
     .run();
