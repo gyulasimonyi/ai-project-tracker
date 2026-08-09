@@ -1,2 +1,328 @@
-<h1>Gyula's AI Project Tracker</h1>
-<p>Under construction. Second chances.</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Projects — Gyula Simonyi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ---------------------------------------------------------------
+   Design tokens. Change a value here and it changes everywhere.
+   The look is a drafting sheet: blue-black ink on cool paper,
+   with one plotter-pen magenta reserved for work in progress.
+----------------------------------------------------------------*/
+:root {
+  --paper:      #E9EDEF;
+  --sheet:      #F6F8F9;
+  --ink:        #14212B;
+  --ink-soft:   #5D6E7A;
+  --rule:       #C6D0D6;
+  --signal:     #D6006E;
+  --signal-bg:  rgba(214, 0, 110, 0.07);
+
+  --display: "Bricolage Grotesque", Georgia, serif;
+  --mono:    "IBM Plex Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 28px 18px 80px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sheet {
+  position: relative;
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 44px 38px 52px;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+}
+
+/* Registration marks, like the corner ticks on a plotter sheet. */
+.tick {
+  position: absolute;
+  width: 13px; height: 13px;
+  border: 1px solid var(--ink);
+}
+.tick.tl { top: 10px;    left: 10px;    border-right: 0; border-bottom: 0; }
+.tick.tr { top: 10px;    right: 10px;   border-left: 0;  border-bottom: 0; }
+.tick.bl { bottom: 10px; left: 10px;    border-right: 0; border-top: 0; }
+.tick.br { bottom: 10px; right: 10px;   border-left: 0;  border-top: 0; }
+
+/* ---------------------------------------------------------------
+   Header
+----------------------------------------------------------------*/
+.eyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+h1 {
+  margin: 6px 0 0;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(38px, 9vw, 62px);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+}
+
+.meter {
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.meter b { color: var(--signal); font-weight: 600; }
+
+/* ---------------------------------------------------------------
+   Section headings
+----------------------------------------------------------------*/
+.section-label {
+  margin: 52px 0 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------
+   Project rows
+----------------------------------------------------------------*/
+.row {
+  display: grid;
+  grid-template-columns: 54px 1fr auto;
+  gap: 0 18px;
+  padding: 20px 0 20px 14px;
+  margin-left: -14px;
+  border-bottom: 1px solid var(--rule);
+}
+
+/* Active work gets the magenta pen: a left stroke and a tinted ground. */
+.row.active {
+  background: var(--signal-bg);
+  box-shadow: inset 3px 0 0 var(--signal);
+}
+
+.num {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--rule);
+  font-variant-numeric: tabular-nums;
+}
+.row.active .num { color: var(--signal); }
+
+.title {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 21px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.summary {
+  margin: 5px 0 0;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+
+.next {
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+.next-label {
+  margin-right: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.status {
+  align-self: start;
+  padding: 3px 9px;
+  border: 1px solid var(--rule);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.row.active .status {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+/* ---------------------------------------------------------------
+   Tools list
+----------------------------------------------------------------*/
+.tool {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 14px;
+}
+.tool-note { color: var(--ink-soft); font-size: 13px; text-align: right; }
+.tool.active .tool-name { color: var(--signal); font-weight: 600; }
+
+/* ---------------------------------------------------------------
+   Footer and messages
+----------------------------------------------------------------*/
+.foot {
+  margin-top: 34px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.message {
+  margin-top: 30px;
+  padding: 18px;
+  border: 1px dashed var(--rule);
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+
+/* ---------------------------------------------------------------
+   Entrance: rows draw in one after another, like a plotter working
+   down the page. Skipped entirely if the reader prefers less motion.
+----------------------------------------------------------------*/
+@keyframes draw-in {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: none; }
+}
+.row, .tool {
+  opacity: 0;
+  animation: draw-in 0.45s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row, .tool { opacity: 1; animation: none; }
+}
+
+/* ---------------------------------------------------------------
+   Narrow screens: the number moves above the title.
+----------------------------------------------------------------*/
+@media (max-width: 560px) {
+  .sheet { padding: 34px 22px 40px; }
+  .row {
+    grid-template-columns: 1fr auto;
+    gap: 0 14px;
+  }
+  .num { grid-column: 1; font-size: 15px; }
+  .status { grid-column: 2; grid-row: 1; }
+  .body { grid-column: 1 / -1; }
+  .tool { flex-direction: column; gap: 2px; }
+  .tool-note { text-align: left; }
+}
+</style>
+</head>
+
+<body>
+<div class="sheet">
+  <span class="tick tl"></span><span class="tick tr"></span>
+  <span class="tick bl"></span><span class="tick br"></span>
+
+  <p class="eyebrow">Personal build log</p>
+  <h1>AI Projects</h1>
+  <p class="meter" id="meter"></p>
+
+  <div id="content"></div>
+</div>
+
+<script>
+// Turn a status key from the data file into a human label.
+function label(status) {
+  if (status === "in-progress") return "In progress";
+  if (status === "done") return "Done";
+  return "Queued";
+}
+
+// Escape any characters that would otherwise be read as HTML.
+function safe(text) {
+  const box = document.createElement("div");
+  box.textContent = text;
+  return box.innerHTML;
+}
+
+function projectRow(project, order) {
+  const active = project.status === "in-progress";
+  return `
+    <article class="row ${active ? "active" : ""}" style="animation-delay:${order * 45}ms">
+      <div class="num">${String(project.id).padStart(2, "0")}</div>
+      <div class="body">
+        <h2 class="title">${safe(project.title)}</h2>
+        <p class="summary">${safe(project.summary)}</p>
+        ${project.next ? `<p class="next"><span class="next-label">Next</span>${safe(project.next)}</p>` : ""}
+      </div>
+      <div class="status">${label(project.status)}</div>
+    </article>`;
+}
+
+function toolRow(tool, order) {
+  const active = tool.status === "in-progress";
+  return `
+    <div class="tool ${active ? "active" : ""}" style="animation-delay:${order * 45}ms">
+      <span class="tool-name">${safe(tool.name)}</span>
+      <span class="tool-note">${safe(tool.note || "")}</span>
+    </div>`;
+}
+
+function render(data) {
+  const projects = data.projects || [];
+  const tools = data.tools || [];
+  const active = projects.filter(p => p.status === "in-progress").length;
+
+  document.getElementById("meter").innerHTML =
+    `<b>${active} in progress</b> · ${projects.length} projects tracked`;
+
+  let order = 0;
+  const html = [
+    `<h2 class="section-label">Projects</h2>`,
+    ...projects.map(p => projectRow(p, order++)),
+    `<h2 class="section-label">Tools to learn</h2>`,
+    ...tools.map(t => toolRow(t, order++)),
+    `<p class="foot">Last updated ${safe(data.updated || "—")}. Edit projects.json to change anything on this page.</p>`
+  ].join("");
+
+  document.getElementById("content").innerHTML = html;
+}
+
+// Fetch the data file that sits next to this page, then draw the page.
+fetch("projects.json")
+  .then(response => {
+    if (!response.ok) throw new Error("projects.json responded " + response.status);
+    return response.json();
+  })
+  .then(render)
+  .catch(error => {
+    document.getElementById("content").innerHTML =
+      `<div class="message">Could not load projects.json — ${safe(error.message)}.
+       Check that the file sits in the same folder as this page and that its
+       punctuation is valid JSON.</div>`;
+  });
+</script>
+</body>
+</html>
