@@ -22,6 +22,8 @@
   --rule:       #2A343B;
   --signal:     #FF2B8F;
   --signal-bg:  rgba(255, 43, 143, 0.1);
+  --success:    #29FF9B;
+  --success-bg: rgba(41, 255, 155, 0.1);
 
   --display: "Bricolage Grotesque", Georgia, serif;
   --mono:    "IBM Plex Mono", ui-monospace, monospace;
@@ -165,6 +167,12 @@ h1 {
 .row.active .status {
   border-color: var(--signal);
   color: var(--signal);
+}
+
+/* Progress complete: swap the pen from magenta to green, same intensity. */
+.row.complete {
+  --signal: var(--success);
+  --signal-bg: var(--success-bg);
 }
 
 /* ---------------------------------------------------------------
@@ -325,6 +333,12 @@ function label(status) {
   return "Queued";
 }
 
+/* A project counts as done once its bar reaches 100%, even if the file
+   still lists it as in-progress — the badge and pen color follow suit. */
+function isComplete(project) {
+  return project.status === "in-progress" && progressOf(project) >= 100;
+}
+
 function safe(text) {
   const box = document.createElement("div");
   box.textContent = text;
@@ -356,15 +370,16 @@ function progressControl(project) {
 
 function projectRow(project, order) {
   const active = project.status === "in-progress";
+  const complete = isComplete(project);
   return `
-    <article class="row ${active ? "active" : ""}" style="animation-delay:${order * 45}ms">
+    <article class="row ${active ? "active" : ""} ${complete ? "complete" : ""}" style="animation-delay:${order * 45}ms">
       <div class="num">${String(project.id).padStart(2, "0")}</div>
       <div class="body">
         <h2 class="title">${safe(project.title)}</h2>
         <p class="summary">${safe(project.summary)}</p>
         ${active ? progressControl(project) : ""}
       </div>
-      <div class="status">${label(project.status)}</div>
+      <div class="status">${complete ? "Done" : label(project.status)}</div>
     </article>`;
 }
 
@@ -409,6 +424,11 @@ function paintControl(control, value) {
   control.querySelector(".track").setAttribute("aria-valuenow", value);
   control.querySelector('[data-step="-10"]').disabled = value <= 0;
   control.querySelector('[data-step="10"]').disabled = value >= 100;
+
+  const row = control.closest(".row");
+  const complete = value >= 100;
+  row.classList.toggle("complete", complete);
+  row.querySelector(".status").textContent = complete ? "Done" : "In progress";
 }
 
 function showSaveError(id) {
