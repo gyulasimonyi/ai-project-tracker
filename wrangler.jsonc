@@ -1,7 +1,16 @@
 {
   "name": "ai-project-tracker",
   "compatibility_date": "2026-08-01",
+  "main": "src/index.js",
   "assets": {
-    "directory": "./public/"
-  }
+    "directory": "./public/",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tracker",
+      "database_id": "fd6b5f11-259c-492a-a931-f015fa59634f"
+    }
+  ]
 }

@@ -90,6 +90,12 @@ h1 {
 }
 .meter b { color: var(--signal); font-weight: 600; }
 
+.notice {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
 /* ---------------------------------------------------------------
    Section headings
 ----------------------------------------------------------------*/
@@ -208,35 +214,11 @@ h1 {
 .step:disabled { opacity: 0.3; cursor: default; }
 .step:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
 
-/* ---------------------------------------------------------------
-   Banner shown when browser values differ from the file
-----------------------------------------------------------------*/
-.sync {
-  display: none;
-  align-items: center;
-  gap: 14px;
-  margin-top: 22px;
-  padding: 13px 15px;
-  border: 1px solid var(--signal);
-  background: var(--signal-bg);
-  font-size: 12.5px;
+.save-error {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: var(--signal);
 }
-.sync.visible { display: flex; }
-.sync-text { flex: 1; color: var(--ink); }
-.sync button {
-  padding: 6px 11px;
-  background: var(--signal);
-  border: 0;
-  color: #fff;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.sync button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
 /* ---------------------------------------------------------------
    Tools list
@@ -301,7 +283,6 @@ h1 {
   .body { grid-column: 1 / -1; }
   .tool { flex-direction: column; gap: 2px; }
   .tool-note { text-align: left; }
-  .sync { flex-direction: column; align-items: flex-start; }
 }
 </style>
 </head>
@@ -314,12 +295,7 @@ h1 {
   <p class="eyebrow">Personal build log</p>
   <h1>AI Learning Projects Tracker</h1>
   <p class="meter" id="meter"></p>
-
-  <div class="sync" id="sync">
-    <span class="sync-text" id="sync-text"></span>
-    <button type="button" id="copy-btn">Copy values for projects.json</button>
-    <button type="button" id="reset-btn">Discard</button>
-  </div>
+  <p class="notice" id="notice" hidden>Saving is unavailable right now — showing saved file values only.</p>
 
   <div id="content"></div>
 </div>
@@ -328,40 +304,19 @@ h1 {
 /* ================================================================
    WHERE THE NUMBERS LIVE
 
-   projects.json is the real record, but a web page cannot write to
-   a file on the server. So clicks are kept in this browser's own
-   storage and layered on top of the file when the page draws.
-
-   That means: your phone will not see these numbers. When you want
-   a change to be permanent, use the copy button and paste the
-   values into projects.json.
+   projects.json is the file record. /api/progress is the database,
+   which wins whenever it has a value for a project. Clicking + or -
+   updates the bar right away and posts the new value to the database.
 ================================================================ */
 
-const STORE_KEY = "tracker-progress";
 let data = null;
+let dbProgress = {};
+let savingAvailable = true;
 
-function loadEdits() {
-  try {
-    return JSON.parse(localStorage.getItem(STORE_KEY)) || {};
-  } catch {
-    return {};
-  }
-}
-
-function saveEdits(edits) {
-  try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(edits));
-  } catch {
-    /* Private browsing can block storage. The page still works. */
-  }
-}
-
-let edits = loadEdits();
-
-/* The number actually shown: your edit if there is one, else the file. */
+/* The number actually shown: the database value if one exists, else the file. */
 function progressOf(project) {
-  const edited = edits[project.id];
-  return typeof edited === "number" ? edited : (project.progress || 0);
+  const stored = dbProgress[project.id];
+  return typeof stored === "number" ? stored : (project.progress || 0);
 }
 
 function label(status) {
@@ -395,7 +350,8 @@ function progressControl(project) {
       <button type="button" class="step" data-step="10"
               aria-label="Increase ${safe(project.title)} by 10 percent"
               ${value >= 100 ? "disabled" : ""}>+</button>
-    </div>`;
+    </div>
+    <p class="save-error" data-error-for="${project.id}" hidden></p>`;
 }
 
 function projectRow(project, order) {
@@ -428,6 +384,7 @@ function render() {
 
   document.getElementById("meter").innerHTML =
     `<b>${active} in progress</b> · ${projects.length} projects tracked`;
+  document.getElementById("notice").hidden = savingAvailable;
 
   let order = 0;
   document.getElementById("content").innerHTML = [
@@ -437,37 +394,56 @@ function render() {
     ...tools.map(t => toolRow(t, order++)),
     `<p class="foot">Last updated ${safe(data.updated || "—")}. Edit projects.json to change anything on this page.</p>`
   ].join("");
-
-  updateSyncBanner();
 }
 
 /* ---------------------------------------------------------------
    Reacting to a click on + or −
 
-   Only the one row is redrawn, so the entrance animation does not
-   replay every time you tap a button.
+   The bar updates immediately, then the new value is posted to the
+   database. If that post fails, the bar reverts and a brief message
+   appears under it.
 ----------------------------------------------------------------*/
-function adjust(id, step) {
+function paintControl(control, value) {
+  control.querySelector(".fill").style.width = value + "%";
+  control.querySelector(".pct").textContent = value + "%";
+  control.querySelector(".track").setAttribute("aria-valuenow", value);
+  control.querySelector('[data-step="-10"]').disabled = value <= 0;
+  control.querySelector('[data-step="10"]').disabled = value >= 100;
+}
+
+function showSaveError(id) {
+  const note = document.querySelector(`.save-error[data-error-for="${id}"]`);
+  if (!note) return;
+  note.textContent = "Could not save — try again.";
+  note.hidden = false;
+  clearTimeout(note._timer);
+  note._timer = setTimeout(() => { note.hidden = true; }, 3000);
+}
+
+async function adjust(id, step) {
   const project = data.projects.find(p => p.id === id);
   if (!project) return;
 
-  const next = Math.min(100, Math.max(0, progressOf(project) + step));
-
-  if (next === (project.progress || 0)) {
-    delete edits[id];          // back to the file value, so stop overriding
-  } else {
-    edits[id] = next;
-  }
-  saveEdits(edits);
+  const previous = progressOf(project);
+  const next = Math.min(100, Math.max(0, previous + step));
+  if (next === previous) return;
 
   const control = document.querySelector(`.progress[data-id="${id}"]`);
-  control.querySelector(".fill").style.width = next + "%";
-  control.querySelector(".pct").textContent = next + "%";
-  control.querySelector(".track").setAttribute("aria-valuenow", next);
-  control.querySelector('[data-step="-10"]').disabled = next <= 0;
-  control.querySelector('[data-step="10"]').disabled = next >= 100;
+  paintControl(control, next);
+  dbProgress[id] = next;
 
-  updateSyncBanner();
+  try {
+    const response = await fetch("/api/progress", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, percent: next })
+    });
+    if (!response.ok) throw new Error("save failed");
+  } catch {
+    dbProgress[id] = previous;
+    paintControl(control, previous);
+    showSaveError(id);
+  }
 }
 
 document.getElementById("content").addEventListener("click", event => {
@@ -478,55 +454,30 @@ document.getElementById("content").addEventListener("click", event => {
 });
 
 /* ---------------------------------------------------------------
-   The banner that appears when this browser and the file disagree
+   Start: fetch the project file and the saved progress in parallel
 ----------------------------------------------------------------*/
-function updateSyncBanner() {
-  const banner = document.getElementById("sync");
-  const count = Object.keys(edits).length;
-
-  banner.classList.toggle("visible", count > 0);
-  if (count === 0) return;
-
-  document.getElementById("sync-text").textContent =
-    count === 1
-      ? "1 project has a value saved only in this browser."
-      : count + " projects have values saved only in this browser.";
-}
-
-document.getElementById("copy-btn").addEventListener("click", async event => {
-  const lines = Object.keys(edits)
-    .map(Number)
-    .sort((a, b) => a - b)
-    .map(id => {
-      const project = data.projects.find(p => p.id === id);
-      return `id ${id} — ${project ? project.title : "?"}: "progress": ${edits[id]}`;
-    })
-    .join("\n");
-
-  try {
-    await navigator.clipboard.writeText(lines);
-    event.target.textContent = "Copied";
-    setTimeout(() => { event.target.textContent = "Copy values for projects.json"; }, 1800);
-  } catch {
-    window.prompt("Copy these values into projects.json:", lines.replace(/\n/g, "  |  "));
-  }
-});
-
-document.getElementById("reset-btn").addEventListener("click", () => {
-  edits = {};
-  saveEdits(edits);
-  render();
-});
-
-/* ---------------------------------------------------------------
-   Start: fetch the data file sitting next to this page
-----------------------------------------------------------------*/
-fetch("projects.json")
+const projectsRequest = fetch("projects.json")
   .then(response => {
     if (!response.ok) throw new Error("projects.json responded " + response.status);
     return response.json();
+  });
+
+const progressRequest = fetch("/api/progress")
+  .then(response => {
+    if (!response.ok) throw new Error("progress API responded " + response.status);
+    return response.json();
   })
-  .then(loaded => { data = loaded; render(); })
+  .catch(() => {
+    savingAvailable = false;
+    return {};
+  });
+
+Promise.all([projectsRequest, progressRequest])
+  .then(([loadedData, loadedProgress]) => {
+    data = loadedData;
+    dbProgress = loadedProgress;
+    render();
+  })
   .catch(error => {
     document.getElementById("content").innerHTML =
       `<div class="message">Could not load projects.json — ${safe(error.message)}.
