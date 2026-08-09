@@ -334,9 +334,14 @@ function label(status) {
 }
 
 /* A project counts as done once its bar reaches 100%, even if the file
-   still lists it as in-progress — the badge and pen color follow suit. */
+   still lists it as in-progress — the badge and pen color follow suit.
+   Dial it back to 0% and it reads as queued again. */
 function isComplete(project) {
   return project.status === "in-progress" && progressOf(project) >= 100;
+}
+
+function isQueued(project) {
+  return project.status === "in-progress" && progressOf(project) <= 0;
 }
 
 function safe(text) {
@@ -369,17 +374,19 @@ function progressControl(project) {
 }
 
 function projectRow(project, order) {
-  const active = project.status === "in-progress";
+  const inProgress = project.status === "in-progress";
   const complete = isComplete(project);
+  const queued = isQueued(project);
+  const highlighted = inProgress && !complete && !queued;
   return `
-    <article class="row ${active ? "active" : ""} ${complete ? "complete" : ""}" style="animation-delay:${order * 45}ms">
+    <article class="row ${highlighted ? "active" : ""} ${complete ? "complete" : ""}" style="animation-delay:${order * 45}ms">
       <div class="num">${String(project.id).padStart(2, "0")}</div>
       <div class="body">
         <h2 class="title">${safe(project.title)}</h2>
         <p class="summary">${safe(project.summary)}</p>
-        ${active ? progressControl(project) : ""}
+        ${inProgress ? progressControl(project) : ""}
       </div>
-      <div class="status">${complete ? "Done" : label(project.status)}</div>
+      <div class="status">${complete ? "Done" : queued ? "Queued" : label(project.status)}</div>
     </article>`;
 }
 
@@ -427,8 +434,10 @@ function paintControl(control, value) {
 
   const row = control.closest(".row");
   const complete = value >= 100;
+  const queued = value <= 0;
   row.classList.toggle("complete", complete);
-  row.querySelector(".status").textContent = complete ? "Done" : "In progress";
+  row.classList.toggle("active", !complete && !queued);
+  row.querySelector(".status").textContent = complete ? "Done" : queued ? "Queued" : "In progress";
 }
 
 function showSaveError(id) {
