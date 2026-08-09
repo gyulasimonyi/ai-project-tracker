@@ -145,19 +145,6 @@ h1 {
   color: var(--ink-soft);
 }
 
-.next {
-  margin: 10px 0 0;
-  font-size: 13px;
-}
-.next-label {
-  margin-right: 8px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
 .status {
   align-self: start;
   padding: 3px 9px;
@@ -173,6 +160,83 @@ h1 {
   border-color: var(--signal);
   color: var(--signal);
 }
+
+/* ---------------------------------------------------------------
+   Progress control, shown only on projects in progress
+----------------------------------------------------------------*/
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 13px;
+}
+
+.track {
+  flex: 1;
+  height: 6px;
+  background: rgba(20, 33, 43, 0.09);
+}
+
+.fill {
+  height: 100%;
+  background: var(--signal);
+  transition: width 0.2s ease-out;
+}
+
+.pct {
+  min-width: 42px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--signal);
+}
+
+.step {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.step:hover:not(:disabled) { border-color: var(--signal); color: var(--signal); }
+.step:disabled { opacity: 0.3; cursor: default; }
+.step:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+/* ---------------------------------------------------------------
+   Banner shown when browser values differ from the file
+----------------------------------------------------------------*/
+.sync {
+  display: none;
+  align-items: center;
+  gap: 14px;
+  margin-top: 22px;
+  padding: 13px 15px;
+  border: 1px solid var(--signal);
+  background: var(--signal-bg);
+  font-size: 12.5px;
+}
+.sync.visible { display: flex; }
+.sync-text { flex: 1; color: var(--ink); }
+.sync button {
+  padding: 6px 11px;
+  background: var(--signal);
+  border: 0;
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sync button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
 /* ---------------------------------------------------------------
    Tools list
@@ -220,6 +284,7 @@ h1 {
 
 @media (prefers-reduced-motion: reduce) {
   .row, .tool { opacity: 1; animation: none; }
+  .fill { transition: none; }
 }
 
 /* ---------------------------------------------------------------
@@ -236,6 +301,7 @@ h1 {
   .body { grid-column: 1 / -1; }
   .tool { flex-direction: column; gap: 2px; }
   .tool-note { text-align: left; }
+  .sync { flex-direction: column; align-items: flex-start; }
 }
 </style>
 </head>
@@ -249,22 +315,87 @@ h1 {
   <h1>AI Projects</h1>
   <p class="meter" id="meter"></p>
 
+  <div class="sync" id="sync">
+    <span class="sync-text" id="sync-text"></span>
+    <button type="button" id="copy-btn">Copy values for projects.json</button>
+    <button type="button" id="reset-btn">Discard</button>
+  </div>
+
   <div id="content"></div>
 </div>
 
 <script>
-// Turn a status key from the data file into a human label.
+/* ================================================================
+   WHERE THE NUMBERS LIVE
+
+   projects.json is the real record, but a web page cannot write to
+   a file on the server. So clicks are kept in this browser's own
+   storage and layered on top of the file when the page draws.
+
+   That means: your phone will not see these numbers. When you want
+   a change to be permanent, use the copy button and paste the
+   values into projects.json.
+================================================================ */
+
+const STORE_KEY = "tracker-progress";
+let data = null;
+
+function loadEdits() {
+  try {
+    return JSON.parse(localStorage.getItem(STORE_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveEdits(edits) {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(edits));
+  } catch {
+    /* Private browsing can block storage. The page still works. */
+  }
+}
+
+let edits = loadEdits();
+
+/* The number actually shown: your edit if there is one, else the file. */
+function progressOf(project) {
+  const edited = edits[project.id];
+  return typeof edited === "number" ? edited : (project.progress || 0);
+}
+
 function label(status) {
   if (status === "in-progress") return "In progress";
   if (status === "done") return "Done";
   return "Queued";
 }
 
-// Escape any characters that would otherwise be read as HTML.
 function safe(text) {
   const box = document.createElement("div");
   box.textContent = text;
   return box.innerHTML;
+}
+
+/* ---------------------------------------------------------------
+   Drawing the page
+----------------------------------------------------------------*/
+function progressControl(project) {
+  const value = progressOf(project);
+  return `
+    <div class="progress" data-id="${project.id}">
+      <button type="button" class="step" data-step="-10"
+              aria-label="Decrease ${safe(project.title)} by 10 percent"
+              ${value <= 0 ? "disabled" : ""}>&minus;</button>
+      <div class="track" role="progressbar" aria-valuenow="${value}"
+           aria-valuemin="0" aria-valuemax="100"
+           aria-label="${safe(project.title)} progress">
+        <div class="fill" style="width:${value}%"></div>
+      </div>
+      <span class="pct">${value}%</span>
+      <button type="button" class="step" data-step="10"
+              aria-label="Increase ${safe(project.title)} by 10 percent"
+              ${value >= 100 ? "disabled" : ""}>+</button>
+    </div>`;
 }
 
 function projectRow(project, order) {
@@ -275,7 +406,7 @@ function projectRow(project, order) {
       <div class="body">
         <h2 class="title">${safe(project.title)}</h2>
         <p class="summary">${safe(project.summary)}</p>
-        ${project.next ? `<p class="next"><span class="next-label">Next</span>${safe(project.next)}</p>` : ""}
+        ${active ? progressControl(project) : ""}
       </div>
       <div class="status">${label(project.status)}</div>
     </article>`;
@@ -290,7 +421,7 @@ function toolRow(tool, order) {
     </div>`;
 }
 
-function render(data) {
+function render() {
   const projects = data.projects || [];
   const tools = data.tools || [];
   const active = projects.filter(p => p.status === "in-progress").length;
@@ -299,24 +430,103 @@ function render(data) {
     `<b>${active} in progress</b> · ${projects.length} projects tracked`;
 
   let order = 0;
-  const html = [
+  document.getElementById("content").innerHTML = [
     `<h2 class="section-label">Projects</h2>`,
     ...projects.map(p => projectRow(p, order++)),
-    `<h2 class="section-label">Tools to learn</h2>`,
+    `<h2 class="section-label">Tools to try</h2>`,
     ...tools.map(t => toolRow(t, order++)),
     `<p class="foot">Last updated ${safe(data.updated || "—")}. Edit projects.json to change anything on this page.</p>`
   ].join("");
 
-  document.getElementById("content").innerHTML = html;
+  updateSyncBanner();
 }
 
-// Fetch the data file that sits next to this page, then draw the page.
+/* ---------------------------------------------------------------
+   Reacting to a click on + or −
+
+   Only the one row is redrawn, so the entrance animation does not
+   replay every time you tap a button.
+----------------------------------------------------------------*/
+function adjust(id, step) {
+  const project = data.projects.find(p => p.id === id);
+  if (!project) return;
+
+  const next = Math.min(100, Math.max(0, progressOf(project) + step));
+
+  if (next === (project.progress || 0)) {
+    delete edits[id];          // back to the file value, so stop overriding
+  } else {
+    edits[id] = next;
+  }
+  saveEdits(edits);
+
+  const control = document.querySelector(`.progress[data-id="${id}"]`);
+  control.querySelector(".fill").style.width = next + "%";
+  control.querySelector(".pct").textContent = next + "%";
+  control.querySelector(".track").setAttribute("aria-valuenow", next);
+  control.querySelector('[data-step="-10"]').disabled = next <= 0;
+  control.querySelector('[data-step="10"]').disabled = next >= 100;
+
+  updateSyncBanner();
+}
+
+document.getElementById("content").addEventListener("click", event => {
+  const button = event.target.closest(".step");
+  if (!button) return;
+  const id = Number(button.closest(".progress").dataset.id);
+  adjust(id, Number(button.dataset.step));
+});
+
+/* ---------------------------------------------------------------
+   The banner that appears when this browser and the file disagree
+----------------------------------------------------------------*/
+function updateSyncBanner() {
+  const banner = document.getElementById("sync");
+  const count = Object.keys(edits).length;
+
+  banner.classList.toggle("visible", count > 0);
+  if (count === 0) return;
+
+  document.getElementById("sync-text").textContent =
+    count === 1
+      ? "1 project has a value saved only in this browser."
+      : count + " projects have values saved only in this browser.";
+}
+
+document.getElementById("copy-btn").addEventListener("click", async event => {
+  const lines = Object.keys(edits)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map(id => {
+      const project = data.projects.find(p => p.id === id);
+      return `id ${id} — ${project ? project.title : "?"}: "progress": ${edits[id]}`;
+    })
+    .join("\n");
+
+  try {
+    await navigator.clipboard.writeText(lines);
+    event.target.textContent = "Copied";
+    setTimeout(() => { event.target.textContent = "Copy values for projects.json"; }, 1800);
+  } catch {
+    window.prompt("Copy these values into projects.json:", lines.replace(/\n/g, "  |  "));
+  }
+});
+
+document.getElementById("reset-btn").addEventListener("click", () => {
+  edits = {};
+  saveEdits(edits);
+  render();
+});
+
+/* ---------------------------------------------------------------
+   Start: fetch the data file sitting next to this page
+----------------------------------------------------------------*/
 fetch("projects.json")
   .then(response => {
     if (!response.ok) throw new Error("projects.json responded " + response.status);
     return response.json();
   })
-  .then(render)
+  .then(loaded => { data = loaded; render(); })
   .catch(error => {
     document.getElementById("content").innerHTML =
       `<div class="message">Could not load projects.json — ${safe(error.message)}.

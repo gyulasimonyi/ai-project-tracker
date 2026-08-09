@@ -5,85 +5,76 @@
       "id": 0,
       "title": "AI learning goal tracker",
       "status": "in-progress",
-      "summary": "This page. Every project and where it stands.",
-      "next": "Move editing to Claude Code"
+      "progress": 40,
+      "summary": "This page. Every project and where it stands."
     },
     {
       "id": 1,
       "title": "Tamara",
       "status": "queued",
-      "summary": "A meta assistant that checks in with the other assistants and delivers a daily briefing on status and focus.",
-      "next": "Decide what belongs in a briefing"
+      "summary": "A meta assistant that checks in with the other assistants and delivers a daily briefing on status and focus."
     },
     {
       "id": 2,
       "title": "Health assistant",
       "status": "queued",
-      "summary": "Knows the full medical history, prompts for journal entries, tracks open issues and next steps.",
-      "next": "Decide where private data lives"
+      "summary": "Knows the full medical history, prompts for journal entries, tracks open issues and next steps."
     },
     {
       "id": 3,
       "title": "Wealth manager assistant",
       "status": "queued",
-      "summary": "Knows the full financial history, prompts for journal entries, tracks open issues and next steps.",
-      "next": "Decide where private data lives"
+      "summary": "Knows the full financial history, prompts for journal entries, tracks open issues and next steps."
     },
     {
       "id": 4,
       "title": "Website migration",
       "status": "in-progress",
-      "summary": "Move gyulasimonyi.com off Squarespace onto free hosting.",
-      "next": "Point DNS at Cloudflare"
+      "progress": 10,
+      "summary": "Move gyulasimonyi.com off Squarespace onto free hosting."
     },
     {
       "id": 5,
       "title": "Tisza Gov Dash",
       "status": "in-progress",
-      "summary": "Bilingual dashboard grading the Hungarian government across the 2026\u20132030 cycle.",
-      "next": "Draft the module schema"
+      "progress": 20,
+      "summary": "Bilingual dashboard grading the Hungarian government across the 2026\u20132030 cycle."
     },
     {
       "id": 6,
       "title": "Plotter illustrations",
       "status": "queued",
-      "summary": "Generate drawings in p5.js and print them on the AxiDraw pen plotter.",
-      "next": "Get one sketch plotting end to end"
+      "summary": "Generate drawings in p5.js and print them on the AxiDraw pen plotter."
     },
     {
       "id": 7,
       "title": "Population dashboard",
       "status": "queued",
-      "summary": "Population dynamics, the economics of shrinking populations, and how people feel about it.",
-      "next": "Find one reliable data source"
+      "summary": "Population dynamics, the economics of shrinking populations, and how people feel about it."
     },
     {
       "id": 8,
       "title": "Music visualisers",
       "status": "queued",
-      "summary": "Sound-reactive visuals, in the spirit of the reels that started this.",
-      "next": "Pick one reel to reverse-engineer"
+      "summary": "Sound-reactive visuals, in the spirit of the reels that started this."
     },
     {
       "id": 9,
       "title": "Tatooine travel guide",
       "status": "queued",
-      "summary": "Straight-faced travel writing \u2014 hotels, restaurants, experiences \u2014 set on Tatooine.",
-      "next": "Write one sample review"
+      "summary": "Straight-faced travel writing \u2014 hotels, restaurants, experiences \u2014 set on Tatooine."
     },
     {
       "id": 10,
       "title": "LIHH field research report",
       "status": "queued",
-      "summary": "Finish and publish the analysis from the self-funded field study in Nepal.",
-      "next": "Get the raw material into one place"
+      "summary": "Finish and publish the analysis from the self-funded field study in Nepal."
     },
     {
       "id": 11,
       "title": "Issue",
       "status": "queued",
-      "summary": "A Buganizer for the world. AI-native ticket filing and routing for an organisation, a city, or a county.",
-      "next": "Describe what one ticket looks like"
+      "summary": "A Buganizer for the world. AI-native ticket filing and routing for an organisation, a city, or a county."
     }
   ],
   "tools": [
@@ -91,6 +82,11 @@
       "name": "Claude Code",
       "status": "in-progress",
       "note": "Editing from the terminal instead of the browser"
+    },
+    {
+      "name": "Lovable",
+      "status": "queued",
+      "note": "Prompt-to-app builder"
     },
     {
       "name": "EigenCloud agents",
