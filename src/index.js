@@ -2,6 +2,10 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    if (url.pathname === "/api/me" && request.method === "GET") {
+      return Response.json({ canEdit: isEditor(request, env) });
+    }
+
     if (url.pathname === "/api/progress" && request.method === "GET") {
       return getProgress(env);
     }
@@ -13,6 +17,11 @@ export default {
     return env.ASSETS.fetch(request);
   }
 };
+
+function isEditor(request, env) {
+  const email = request.headers.get("Cf-Access-Authenticated-User-Email");
+  return !!email && email === env.ADMIN_EMAIL;
+}
 
 async function getProgress(env) {
   const { results } = await env.DB
@@ -28,6 +37,10 @@ async function getProgress(env) {
 }
 
 async function postProgress(request, env) {
+  if (!isEditor(request, env)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   let body;
   try {
     body = await request.json();

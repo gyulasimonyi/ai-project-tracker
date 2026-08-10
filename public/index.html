@@ -304,6 +304,7 @@ h1 {
   <h1>AI Learning Projects Tracker</h1>
   <p class="meter" id="meter"></p>
   <p class="notice" id="notice" hidden>Saving is unavailable right now — showing saved file values only.</p>
+  <p class="notice" id="view-only-notice" hidden>View only — you're not signed in as the editor.</p>
 
   <div id="content"></div>
 </div>
@@ -320,6 +321,7 @@ h1 {
 let data = null;
 let dbProgress = {};
 let savingAvailable = true;
+let canEdit = false;
 
 /* The number actually shown: the database value if one exists, else the file. */
 function progressOf(project) {
@@ -346,20 +348,26 @@ function safe(text) {
 ----------------------------------------------------------------*/
 function progressControl(project) {
   const value = progressOf(project);
+  const minus = canEdit
+    ? `<button type="button" class="step" data-step="-10"
+              aria-label="Decrease ${safe(project.title)} by 10 percent"
+              ${value <= 0 ? "disabled" : ""}>&minus;</button>`
+    : "";
+  const plus = canEdit
+    ? `<button type="button" class="step" data-step="10"
+              aria-label="Increase ${safe(project.title)} by 10 percent"
+              ${value >= 100 ? "disabled" : ""}>+</button>`
+    : "";
   return `
     <div class="progress" data-id="${project.id}">
-      <button type="button" class="step" data-step="-10"
-              aria-label="Decrease ${safe(project.title)} by 10 percent"
-              ${value <= 0 ? "disabled" : ""}>&minus;</button>
+      ${minus}
       <div class="track" role="progressbar" aria-valuenow="${value}"
            aria-valuemin="0" aria-valuemax="100"
            aria-label="${safe(project.title)} progress">
         <div class="fill" style="width:${value}%"></div>
       </div>
       <span class="pct">${value}%</span>
-      <button type="button" class="step" data-step="10"
-              aria-label="Increase ${safe(project.title)} by 10 percent"
-              ${value >= 100 ? "disabled" : ""}>+</button>
+      ${plus}
     </div>
     <p class="save-error" data-error-for="${project.id}" hidden></p>`;
 }
@@ -398,6 +406,7 @@ function render() {
   document.getElementById("meter").innerHTML =
     `<b>${active} in progress</b> · ${projects.length} projects tracked`;
   document.getElementById("notice").hidden = savingAvailable;
+  document.getElementById("view-only-notice").hidden = canEdit;
 
   let order = 0;
   document.getElementById("content").innerHTML = [
@@ -492,10 +501,19 @@ const progressRequest = fetch("/api/progress")
     return {};
   });
 
-Promise.all([projectsRequest, progressRequest])
-  .then(([loadedData, loadedProgress]) => {
+const meRequest = fetch("/api/me")
+  .then(response => {
+    if (!response.ok) throw new Error("me API responded " + response.status);
+    return response.json();
+  })
+  .then(me => me.canEdit === true)
+  .catch(() => false);
+
+Promise.all([projectsRequest, progressRequest, meRequest])
+  .then(([loadedData, loadedProgress, editable]) => {
     data = loadedData;
     dbProgress = loadedProgress;
+    canEdit = editable;
     render();
   })
   .catch(error => {
