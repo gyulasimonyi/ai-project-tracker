@@ -115,6 +115,7 @@ h1 {
    Project rows
 ----------------------------------------------------------------*/
 .row {
+  position: relative;
   display: grid;
   grid-template-columns: 54px 1fr auto;
   gap: 0 18px;
@@ -127,6 +128,20 @@ h1 {
 .row.active {
   background: var(--signal-bg);
   box-shadow: inset 3px 0 0 var(--signal);
+}
+
+/* Quiet slot marker, top-left corner: where this row sits in the list. */
+.pos {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--ink-soft);
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
 }
 
 .num {
@@ -153,14 +168,23 @@ h1 {
   color: var(--ink-soft);
 }
 
-.status {
+.side {
   align-self: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.status {
+  width: 104px;
   padding: 3px 9px;
   border: 1px solid var(--rule);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+  text-align: center;
   color: var(--ink-soft);
   white-space: nowrap;
 }
@@ -169,10 +193,21 @@ h1 {
   color: var(--signal);
 }
 
-/* Progress complete: swap the pen from magenta to green, same intensity. */
+/* Progress complete: swap the pen from magenta to green, same intensity.
+   .status reads the same --signal variable as .fill below, so the done
+   pill and the full bar always match. */
 .row.complete {
   --signal: var(--success);
   --signal-bg: var(--success-bg);
+}
+.row.complete .status {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+.reorder {
+  display: flex;
+  gap: 6px;
 }
 
 /* ---------------------------------------------------------------
@@ -198,7 +233,7 @@ h1 {
 }
 
 .pct {
-  min-width: 42px;
+  width: 34px;
   font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -287,7 +322,7 @@ h1 {
     gap: 0 14px;
   }
   .num { grid-column: 1; font-size: 15px; }
-  .status { grid-column: 2; grid-row: 1; }
+  .side { grid-column: 2; grid-row: 1; }
   .body { grid-column: 1 / -1; }
   .tool { flex-direction: column; gap: 2px; }
   .tool-note { text-align: left; }
@@ -305,6 +340,7 @@ h1 {
   <p class="meter" id="meter"></p>
   <p class="notice" id="notice" hidden>Saving is unavailable right now — showing saved file values only.</p>
   <p class="notice" id="view-only-notice" hidden>View only — you're not signed in as the editor.</p>
+  <p class="save-error" id="order-error" hidden>Could not save the new order — try again.</p>
 
   <div id="content"></div>
 </div>
@@ -322,6 +358,25 @@ let data = null;
 let dbProgress = {};
 let savingAvailable = true;
 let canEdit = false;
+
+/* Reorders projects to match a stored id sequence. Ids missing from the
+   stored order (e.g. newly added projects) are appended in file order. */
+function applyOrder(projects, order) {
+  if (!order || order.length === 0) return projects.slice();
+  const remaining = new Map(projects.map(p => [p.id, p]));
+  const ordered = [];
+  for (const id of order) {
+    const project = remaining.get(id);
+    if (project) {
+      ordered.push(project);
+      remaining.delete(id);
+    }
+  }
+  for (const project of projects) {
+    if (remaining.has(project.id)) ordered.push(project);
+  }
+  return ordered;
+}
 
 /* The number actually shown: the database value if one exists, else the file. */
 function progressOf(project) {
@@ -372,20 +427,36 @@ function progressControl(project) {
     <p class="save-error" data-error-for="${project.id}" hidden></p>`;
 }
 
-function projectRow(project, order) {
+function projectRow(project, index, total, animOrder) {
   const value = progressOf(project);
   const complete = value >= 100;
   const queued = value <= 0;
   const highlighted = !complete && !queued;
+  const position = index + 1;
+
+  const up = canEdit && index > 0
+    ? `<button type="button" class="step" data-move="up" data-index="${index}"
+              aria-label="Move ${safe(project.title)} up">&uarr;</button>`
+    : "";
+  const down = canEdit && index < total - 1
+    ? `<button type="button" class="step" data-move="down" data-index="${index}"
+              aria-label="Move ${safe(project.title)} down">&darr;</button>`
+    : "";
+  const reorder = canEdit ? `<div class="reorder">${up}${down}</div>` : "";
+
   return `
-    <article class="row ${highlighted ? "active" : ""} ${complete ? "complete" : ""}" style="animation-delay:${order * 45}ms">
-      <div class="num">${String(project.id).padStart(2, "0")}</div>
+    <article class="row ${highlighted ? "active" : ""} ${complete ? "complete" : ""}" style="animation-delay:${animOrder * 45}ms">
+      <span class="pos" aria-hidden="true">${position}</span>
+      <div class="num">#${String(project.id).padStart(2, "0")}</div>
       <div class="body">
         <h2 class="title">${safe(project.title)}</h2>
         <p class="summary">${safe(project.summary)}</p>
         ${progressControl(project)}
       </div>
-      <div class="status">${statusLabel(value)}</div>
+      <div class="side">
+        <div class="status">${statusLabel(value)}</div>
+        ${reorder}
+      </div>
     </article>`;
 }
 
@@ -408,12 +479,12 @@ function render() {
   document.getElementById("notice").hidden = savingAvailable;
   document.getElementById("view-only-notice").hidden = canEdit;
 
-  let order = 0;
+  let animOrder = 0;
   document.getElementById("content").innerHTML = [
     `<h2 class="section-label">Projects</h2>`,
-    ...projects.map(p => projectRow(p, order++)),
+    ...projects.map((p, index) => projectRow(p, index, projects.length, animOrder++)),
     `<h2 class="section-label">Tools to try</h2>`,
-    ...tools.map(t => toolRow(t, order++)),
+    ...tools.map(t => toolRow(t, animOrder++)),
     `<p class="foot">Last updated ${safe(data.updated || "—")}. Edit projects.json to change anything on this page.</p>`
   ].join("");
 }
@@ -475,11 +546,50 @@ async function adjust(id, step) {
   }
 }
 
+function showOrderError() {
+  const note = document.getElementById("order-error");
+  if (!note) return;
+  note.hidden = false;
+  clearTimeout(note._timer);
+  note._timer = setTimeout(() => { note.hidden = true; }, 3000);
+}
+
+function swapProjects(i, j) {
+  const projects = data.projects;
+  [projects[i], projects[j]] = [projects[j], projects[i]];
+}
+
+async function moveProject(index, delta) {
+  const projects = data.projects;
+  const target = index + delta;
+  if (target < 0 || target >= projects.length) return;
+
+  swapProjects(index, target);
+  render();
+
+  try {
+    const response = await fetch("/api/order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order: projects.map(p => p.id) })
+    });
+    if (!response.ok) throw new Error("reorder failed");
+  } catch {
+    swapProjects(index, target);
+    render();
+    showOrderError();
+  }
+}
+
 document.getElementById("content").addEventListener("click", event => {
   const button = event.target.closest(".step");
   if (!button) return;
-  const id = Number(button.closest(".progress").dataset.id);
-  adjust(id, Number(button.dataset.step));
+  if (button.dataset.step !== undefined) {
+    const id = Number(button.closest(".progress").dataset.id);
+    adjust(id, Number(button.dataset.step));
+  } else if (button.dataset.move !== undefined) {
+    moveProject(Number(button.dataset.index), button.dataset.move === "up" ? -1 : 1);
+  }
 });
 
 /* ---------------------------------------------------------------
@@ -498,7 +608,7 @@ const progressRequest = fetch("/api/progress")
   })
   .catch(() => {
     savingAvailable = false;
-    return {};
+    return { progress: {}, order: [] };
   });
 
 const meRequest = fetch("/api/me")
@@ -512,8 +622,9 @@ const meRequest = fetch("/api/me")
 Promise.all([projectsRequest, progressRequest, meRequest])
   .then(([loadedData, loadedProgress, editable]) => {
     data = loadedData;
-    dbProgress = loadedProgress;
+    dbProgress = loadedProgress.progress || {};
     canEdit = editable;
+    data.projects = applyOrder(data.projects || [], loadedProgress.order || []);
     render();
   })
   .catch(error => {
