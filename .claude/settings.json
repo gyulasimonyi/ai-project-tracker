@@ -1,0 +1,70 @@
+{
+  "_comment": [
+    "Claude Code project permissions for ai-project-tracker (Cloudflare Wrangler + D1).",
+    "This is strict JSON (no // comments allowed), hence this field instead of a header comment.",
+    "",
+    "allow: safe, read-only, or local-only actions. No prompt.",
+    "  - Read/Grep/Glob/Edit/Write: normal code editing tools.",
+    "  - git status/diff/log: inspection only, no state change.",
+    "  - ls/cat/pwd: basic shell inspection.",
+    "  - wrangler dev: runs the local dev server, no deploy.",
+    "  - wrangler d1 execute --local: only touches the local SQLite copy of D1",
+    "    (.wrangler/state), never the remote database. The allow rule is pinned",
+    "    to the 'tracker' database name (see wrangler.jsonc) with --local right",
+    "    after it, matching the canonical",
+    "    `npx wrangler d1 execute tracker --local ...` form.",
+    "",
+    "ask: reversible-but-consequential actions. Always confirm.",
+    "  - wrangler deploy: this project ships via `git push` (CI/CD), so a manual",
+    "    deploy from this machine is almost never intended.",
+    "  - wrangler d1 execute --remote: mutates the production database directly,",
+    "    bypassing schema review. This rule is pinned to `--remote` (not a bare",
+    "    'd1 execute:*' catch-all) on purpose: Claude Code's precedence is",
+    "    deny > ask > allow with NO specificity override, so a broad ask rule",
+    "    here would shadow the --local allow rule above and force a prompt on",
+    "    every local D1 command too. Any d1 execute invocation that matches",
+    "    neither this nor the --local allow rule (wrong db name, unusual flag",
+    "    order, no flag at all) falls through to the default prompt instead --",
+    "    covered in normal permission mode, but NOT guaranteed if you ever",
+    "    switch into acceptEdits/bypassPermissions/auto mode. Type the command",
+    "    in the canonical form above to stay covered.",
+    "  - git commit/push: done manually via GitHub Desktop, so Claude should",
+    "    never commit or push on its own.",
+    "",
+    "curl/wget are deliberately absent from allow, ask, and deny. Claude Code",
+    "evaluates permissions as deny > ask > allow, and deny always wins even",
+    "against a more specific allow rule -- so a blanket 'deny curl to anything",
+    "but localhost' rule isn't expressible (it would block localhost too).",
+    "Leaving them unlisted means every curl/wget call, localhost or not, falls",
+    "to the default prompt: nothing runs silently, nothing is blocked outright.",
+    "",
+    "deny: never run, no override.",
+    "  - rm -rf: too easy to catastrophically delete the wrong path."
+  ],
+  "permissions": {
+    "allow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Edit",
+      "Write",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(pwd:*)",
+      "Bash(npx wrangler dev:*)",
+      "Bash(npx wrangler d1 execute tracker --local:*)"
+    ],
+    "ask": [
+      "Bash(npx wrangler deploy:*)",
+      "Bash(npx wrangler d1 execute tracker --remote:*)",
+      "Bash(git push:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)"
+    ]
+  }
+}
